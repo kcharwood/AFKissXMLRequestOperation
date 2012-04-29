@@ -35,8 +35,6 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
 @property (readwrite, nonatomic, retain) DDXMLDocument *responseXMLDocument;
 @property (readwrite, nonatomic, retain) NSError *XMLError;
 
-+ (NSSet *)defaultAcceptableContentTypes;
-+ (NSSet *)defaultAcceptablePathExtensions;
 @end
 
 @implementation AFKissXMLRequestOperation
@@ -47,9 +45,9 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
                                                               success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, DDXMLDocument *XMLDocument))success 
                                                               failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, DDXMLDocument *XMLDocument))failure
 {
-    AFKissXMLRequestOperation *operation = [[[self alloc] initWithRequest:urlRequest] autorelease];
+    AFKissXMLRequestOperation *requestOperation = [[[self alloc] initWithRequest:urlRequest] autorelease];
     
-    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+    [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
         if (success) {
             success(operation.request, operation.response, responseObject);
         }
@@ -59,26 +57,7 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
         }
     }];
     
-    return operation;
-}
-
-+ (NSSet *)defaultAcceptableContentTypes {
-    return [NSSet setWithObjects:@"application/xml", @"text/xml", @"text/html", @"application/xhtml+xml", nil];
-}
-
-+ (NSSet *)defaultAcceptablePathExtensions {
-    return [NSSet setWithObjects:@"xml", @"html", nil];
-}
-
-- (id)initWithRequest:(NSURLRequest *)urlRequest {
-    self = [super initWithRequest:urlRequest];
-    if (!self) {
-        return nil;
-    }
-    
-    self.acceptableContentTypes = [[self class] defaultAcceptableContentTypes];
-    
-    return self;
+    return requestOperation;
 }
 
 - (void)dealloc {
@@ -105,10 +84,14 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
     }
 }
 
-#pragma mark - NSOperation
+#pragma mark - AFHTTPRequestOperation
+
++ (NSSet *)acceptableContentTypes {
+    return [NSSet setWithObjects:@"application/xml", @"text/xml", @"text/html", @"application/xhtml+xml", nil];
+}
 
 + (BOOL)canProcessRequest:(NSURLRequest *)request {
-    return [[self defaultAcceptableContentTypes] containsObject:[request valueForHTTPHeaderField:@"Accept"]] || [[self defaultAcceptablePathExtensions] containsObject:[[request URL] pathExtension]];
+    return [[[request URL] pathExtension] isEqualToString:@"xml"] || [super canProcessRequest:request];
 }
 
 - (void)setCompletionBlockWithSuccess:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
