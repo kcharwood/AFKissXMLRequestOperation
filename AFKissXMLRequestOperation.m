@@ -104,24 +104,24 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
         
         if (self.error) {
             if (failure) {
-                dispatch_group_async(self.dispatchGroup, self.failureCallbackQueue ? self.failureCallbackQueue : dispatch_get_main_queue(), ^(void) {
+                dispatch_async(self.failureCallbackQueue ? self.failureCallbackQueue : dispatch_get_main_queue(), ^(void) {
                     failure(self, self.error);
                 });
             }
         } else {
-            dispatch_group_async(self.dispatchGroup, kissxml_request_operation_processing_queue(), ^{
+            dispatch_async(kissxml_request_operation_processing_queue(), ^{
                 DDXMLDocument *XMLDocument = operation.responseXMLDocument;
                 
                 if(self.XMLError){
                     if (failure) {
-                        dispatch_group_async(self.dispatchGroup, self.failureCallbackQueue ? self.failureCallbackQueue : dispatch_get_main_queue(), ^{
+                        dispatch_async( self.failureCallbackQueue ? self.failureCallbackQueue : dispatch_get_main_queue(), ^{
                             failure(self, self.XMLError);
                         });
                     }
                 }
                 else{
                     if (success) {
-                        dispatch_group_async(self.dispatchGroup, self.successCallbackQueue ? self.successCallbackQueue : dispatch_get_main_queue(), ^{
+                        dispatch_async( self.successCallbackQueue ? self.successCallbackQueue : dispatch_get_main_queue(), ^{
                             success(self, self.responseXMLDocument);
                         });
                     }
