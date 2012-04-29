@@ -70,7 +70,7 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
     if (!_responseXMLDocument && [self isFinished]) {
         NSError *error = nil;
         self.responseXMLDocument = [[DDXMLDocument alloc] initWithData:self.responseData options:0 error:&error];
-        self.error = error;
+        self.XMLError = error;
     }
     
     return _responseXMLDocument;
@@ -110,7 +110,7 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
             }
         } else {
             dispatch_async(kissxml_request_operation_processing_queue(), ^{
-                DDXMLDocument *XMLDocument = operation.responseXMLDocument;
+                DDXMLDocument *XMLDocument = self.responseXMLDocument;
                 
                 if(self.XMLError){
                     if (failure) {
@@ -122,11 +122,11 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
                 else{
                     if (success) {
                         dispatch_async( self.successCallbackQueue ? self.successCallbackQueue : dispatch_get_main_queue(), ^{
-                            success(self, self.responseXMLDocument);
+                            success(self, XMLDocument);
                         });
                     }
                 }
-            })
+            });
         }
     };    
 }
