@@ -91,7 +91,7 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
 }
 
 + (BOOL)canProcessRequest:(NSURLRequest *)request {
-    return [[[request URL] pathExtension] isEqualToString:@"xml"] || [super canProcessRequest:request];
+    return [[[request URL] pathExtension] isEqualToString:@"xml"] || [[[request URL] pathExtension] isEqualToString:@"html"] || [super canProcessRequest:request];
 }
 
 - (void)setCompletionBlockWithSuccess:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
