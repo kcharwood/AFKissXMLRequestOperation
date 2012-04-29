@@ -33,7 +33,7 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
 
 @interface AFKissXMLRequestOperation ()
 @property (readwrite, nonatomic, retain) DDXMLDocument *responseXMLDocument;
-@property (readwrite, nonatomic, retain) NSError *error;
+@property (readwrite, nonatomic, retain) NSError *XMLError;
 
 + (NSSet *)defaultAcceptableContentTypes;
 + (NSSet *)defaultAcceptablePathExtensions;
@@ -41,35 +41,23 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
 
 @implementation AFKissXMLRequestOperation
 @synthesize responseXMLDocument = _responseXMLDocument;
-@synthesize error = _XMLError;
+@synthesize XMLError = _XMLError;
 
 + (AFKissXMLRequestOperation *)XMLDocumentRequestOperationWithRequest:(NSURLRequest *)urlRequest 
                                                               success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, DDXMLDocument *XMLDocument))success 
                                                               failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, DDXMLDocument *XMLDocument))failure
 {
     AFKissXMLRequestOperation *operation = [[[self alloc] initWithRequest:urlRequest] autorelease];
-    operation.completionBlock = ^ {
-        if ([operation isCancelled]) {
-            return;
+    
+    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        if (success) {
+            success(operation.request, operation.response, responseObject);
         }
-        
-        if (operation.error) {
-            if (failure) {
-                dispatch_async(dispatch_get_main_queue(), ^(void) {
-                    failure(operation.request, operation.response, operation.error, [(AFKissXMLRequestOperation *)operation responseXMLDocument]);
-                });
-            }
-        } else {
-            dispatch_async(kissxml_request_operation_processing_queue(), ^(void) {
-                DDXMLDocument *XMLDocument = operation.responseXMLDocument;
-                if (success) {
-                    dispatch_async(dispatch_get_main_queue(), ^(void) {
-                        success(operation.request, operation.response, XMLDocument);
-                    });
-                }
-            });
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        if (failure) {
+            failure(operation.request, operation.response, operation.error, [(AFKissXMLRequestOperation *)operation responseXMLDocument]);
         }
-    };
+    }];
     
     return operation;
 }
@@ -133,14 +121,29 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
         
         if (self.error) {
             if (failure) {
-                dispatch_async(dispatch_get_main_queue(), ^(void) {
+                dispatch_group_async(self.dispatchGroup, self.failureCallbackQueue ? self.failureCallbackQueue : dispatch_get_main_queue(), ^(void) {
                     failure(self, self.error);
                 });
             }
         } else {
-            if (success) {
-                success(self, self.responseXMLDocument);
-            }
+            dispatch_group_async(self.dispatchGroup, kissxml_request_operation_processing_queue(), ^{
+                DDXMLDocument *XMLDocument = operation.responseXMLDocument;
+                
+                if(self.XMLError){
+                    if (failure) {
+                        dispatch_group_async(self.dispatchGroup, self.failureCallbackQueue ? self.failureCallbackQueue : dispatch_get_main_queue(), ^{
+                            failure(self, self.XMLError);
+                        });
+                    }
+                }
+                else{
+                    if (success) {
+                        dispatch_group_async(self.dispatchGroup, self.successCallbackQueue ? self.successCallbackQueue : dispatch_get_main_queue(), ^{
+                            success(self, self.responseXMLDocument);
+                        });
+                    }
+                }
+            })
         }
     };    
 }
