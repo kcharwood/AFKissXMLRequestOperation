@@ -32,78 +32,38 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
 }
 
 @interface AFKissXMLRequestOperation ()
-@property (readwrite, nonatomic, retain) DDXMLDocument *responseXMLDocument;
-@property (readwrite, nonatomic, retain) NSError *error;
+@property (readwrite, nonatomic, strong) DDXMLDocument *responseXMLDocument;
+@property (readwrite, nonatomic, strong) NSError *XMLError;
 
-+ (NSSet *)defaultAcceptableContentTypes;
-+ (NSSet *)defaultAcceptablePathExtensions;
 @end
 
 @implementation AFKissXMLRequestOperation
 @synthesize responseXMLDocument = _responseXMLDocument;
-@synthesize error = _XMLError;
+@synthesize XMLError = _XMLError;
 
 + (AFKissXMLRequestOperation *)XMLDocumentRequestOperationWithRequest:(NSURLRequest *)urlRequest 
                                                               success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, DDXMLDocument *XMLDocument))success 
                                                               failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, DDXMLDocument *XMLDocument))failure
 {
-    AFKissXMLRequestOperation *operation = [[[self alloc] initWithRequest:urlRequest] autorelease];
-    operation.completionBlock = ^ {
-        if ([operation isCancelled]) {
-            return;
+    AFKissXMLRequestOperation *requestOperation = [[self alloc] initWithRequest:urlRequest];
+    [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        if (success) {
+            success(operation.request, operation.response, responseObject);
         }
-        
-        if (operation.error) {
-            if (failure) {
-                dispatch_async(dispatch_get_main_queue(), ^(void) {
-                    failure(operation.request, operation.response, operation.error, [(AFKissXMLRequestOperation *)operation responseXMLDocument]);
-                });
-            }
-        } else {
-            dispatch_async(kissxml_request_operation_processing_queue(), ^(void) {
-                DDXMLDocument *XMLDocument = operation.responseXMLDocument;
-                if (success) {
-                    dispatch_async(dispatch_get_main_queue(), ^(void) {
-                        success(operation.request, operation.response, XMLDocument);
-                    });
-                }
-            });
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        if (failure) {
+            failure(operation.request, operation.response, error, [(AFKissXMLRequestOperation *)operation responseXMLDocument]);
         }
-    };
+    }];
     
-    return operation;
-}
-
-+ (NSSet *)defaultAcceptableContentTypes {
-    return [NSSet setWithObjects:@"application/xml", @"text/xml", @"text/html", @"application/xhtml+xml", nil];
-}
-
-+ (NSSet *)defaultAcceptablePathExtensions {
-    return [NSSet setWithObjects:@"xml", @"html", nil];
-}
-
-- (id)initWithRequest:(NSURLRequest *)urlRequest {
-    self = [super initWithRequest:urlRequest];
-    if (!self) {
-        return nil;
-    }
-    
-    self.acceptableContentTypes = [[self class] defaultAcceptableContentTypes];
-    
-    return self;
-}
-
-- (void)dealloc {
-    [_XMLDocument release];
-    [_XMLError release];
-    [super dealloc];
+    return requestOperation;
 }
 
 - (DDXMLDocument *)responseXMLDocument {
     if (!_responseXMLDocument && [self isFinished]) {
         NSError *error = nil;
         self.responseXMLDocument = [[DDXMLDocument alloc] initWithData:self.responseData options:0 error:&error];
-        self.error = error;
+        self.XMLError = error;
     }
     
     return _responseXMLDocument;
@@ -117,15 +77,21 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
     }
 }
 
-#pragma mark - NSOperation
+#pragma mark - AFHTTPRequestOperation
+
++ (NSSet *)acceptableContentTypes {
+    return [NSSet setWithObjects:@"application/xml", @"text/xml", @"text/html",@"application/xhtml+xml", nil];
+}
 
 + (BOOL)canProcessRequest:(NSURLRequest *)request {
-    return [[self defaultAcceptableContentTypes] containsObject:[request valueForHTTPHeaderField:@"Accept"]] || [[self defaultAcceptablePathExtensions] containsObject:[[request URL] pathExtension]];
+    return [[[request URL] pathExtension] isEqualToString:@"xml"] || [[[request URL] pathExtension] isEqualToString:@"html"] || [super canProcessRequest:request];
 }
 
 - (void)setCompletionBlockWithSuccess:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
                               failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-retain-cycles"
     self.completionBlock = ^ {
         if ([self isCancelled]) {
             return;
@@ -133,16 +99,31 @@ static dispatch_queue_t kissxml_request_operation_processing_queue() {
         
         if (self.error) {
             if (failure) {
-                dispatch_async(dispatch_get_main_queue(), ^(void) {
+                dispatch_async(self.failureCallbackQueue ?: dispatch_get_main_queue(), ^{
                     failure(self, self.error);
                 });
             }
         } else {
-            if (success) {
-                success(self, self.responseXMLDocument);
-            }
+            dispatch_async(kissxml_request_operation_processing_queue(), ^{
+                id XMLDocument = self.responseXMLDocument;
+                
+                if (self.XMLError) {
+                    if (failure) {
+                        dispatch_async(self.failureCallbackQueue ?: dispatch_get_main_queue(), ^{
+                            failure(self, self.error);
+                        });
+                    }
+                } else {
+                    if (success) {
+                        dispatch_async(self.successCallbackQueue ?: dispatch_get_main_queue(), ^{
+                            success(self, XMLDocument);
+                        });
+                    }
+                }
+            });
         }
-    };    
+    };
+#pragma clang diagnostic pop
 }
 
 @end

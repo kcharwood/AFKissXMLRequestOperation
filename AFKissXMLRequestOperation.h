@@ -26,12 +26,10 @@
 #import "DDXML.h"
 
 @interface AFKissXMLRequestOperation : AFHTTPRequestOperation {
-@private
-    DDXMLDocument *_XMLDocument;
-    NSError *_XMLError;
+
 }
 
-@property (readonly, nonatomic, retain) DDXMLDocument *responseXMLDocument;
+@property (readonly, nonatomic, strong) DDXMLDocument *responseXMLDocument;
 
 + (AFKissXMLRequestOperation *)XMLDocumentRequestOperationWithRequest:(NSURLRequest *)urlRequest
                                                               success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, DDXMLDocument *XMLDocument))success
